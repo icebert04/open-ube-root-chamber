@@ -60,7 +60,7 @@ void setup() {
 
 // ─── Main Loop ───────────────────────────────────────────────────────────────
 void loop() {
-  unsigned long now = millis();
+  unsigned long now = esp_timer_get_time();
 
   // Heartbeat blink
   digitalWrite(STATUS_LED_PIN, (now / 500) % 2);
