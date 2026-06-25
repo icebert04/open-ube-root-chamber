@@ -12,4 +12,4 @@ jobs:
       - name: Install dependencies
         run: pip install rich
       - name: Run simulation in batch mode
-        run: python firmware-esp32/simulation/simulate.py --days 30 --batch
+        run: python simulation/simulate.py --days 30 --batch
