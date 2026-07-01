@@ -15,6 +15,7 @@
 
 #include "DHT.h"
 #include "pid_controller.h"
+#include "config.h"      
 
 // ─── Pin Definitions ─────────────────────────────────────────────────────────
 #define DHT_PIN        4   // GPIO4  → DHT22 data pin
@@ -23,13 +24,6 @@
 #define HEAT_MAT_PIN   17  // GPIO17 → Relay for heat mat
 #define STATUS_LED_PIN 2   // GPIO2  → Onboard LED (heartbeat)
 
-// ─── Target Setpoints ────────────────────────────────────────────────────────
-const float HUMIDITY_TARGET    = 87.5; // midpoint of 85–90%
-const float TEMPERATURE_TARGET = 29.0; // midpoint of 28–30°C
-
-// ─── Timing ──────────────────────────────────────────────────────────────────
-const unsigned long SENSOR_INTERVAL_MS = 2000;  // read sensor every 2s
-const unsigned long SERIAL_LOG_MS      = 5000;  // log to Serial every 5s
 
 // ─── Globals ─────────────────────────────────────────────────────────────────
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -42,6 +36,8 @@ unsigned long lastSerialLog  = 0;
 float currentHumidity    = 0.0;
 float currentTemperature = 0.0;
 
+static bool prevMister = false;
+static bool prevHeat   = false;
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
@@ -56,11 +52,15 @@ void setup() {
   digitalWrite(HEAT_MAT_PIN,   LOW);
 
   Serial.println("[open-root-chamber] Firmware started.");
+
+  Serial.print("[CONFIG] HUMIDITY_TARGET=");    Serial.println(HUMIDITY_TARGET);
+  Serial.print("[CONFIG] TEMPERATURE_TARGET="); Serial.println(TEMPERATURE_TARGET);
+  Serial.print("[CONFIG] DEADBAND=");           Serial.println(DEADBAND);
 }
 
 // ─── Main Loop ───────────────────────────────────────────────────────────────
 void loop() {
-  unsigned long now = esp_timer_get_time();
+  unsigned long now = millis();
 
   // Heartbeat blink
   digitalWrite(STATUS_LED_PIN, (now / 500) % 2);
@@ -91,13 +91,24 @@ void readSensors() {
 
 // ─── PID Control → Actuators ─────────────────────────────────────────────────
 void applyControl() {
-  // Humidity: mister ON if below target band
-  bool misterOn = humidityPID.needsActuation(currentHumidity, /*invertIfBelow=*/true);
-  digitalWrite(MISTER_PIN, misterOn ? HIGH : LOW);
+  bool misterOn = humidityPID.needsActuation(currentHumidity,    true);
+  bool heatOn   = tempPID.needsActuation(currentTemperature, true);
 
-  // Temperature: heat mat ON if below target band
-  bool heatOn = tempPID.needsActuation(currentTemperature, /*invertIfBelow=*/true);
-  digitalWrite(HEAT_MAT_PIN, heatOn ? HIGH : LOW);
+  digitalWrite(MISTER_PIN,   misterOn ? HIGH : LOW);
+  digitalWrite(HEAT_MAT_PIN, heatOn   ? HIGH : LOW);
+
+  if (misterOn != prevMister) {
+    Serial.print("[MIST] "); Serial.print(misterOn ? "ON" : "OFF");
+    Serial.print("  hum="); Serial.print(currentHumidity);
+    Serial.print("% target="); Serial.println(HUMIDITY_TARGET);
+    prevMister = misterOn;
+  }
+  if (heatOn != prevHeat) {
+    Serial.print("[HEAT] "); Serial.print(heatOn ? "ON" : "OFF");
+    Serial.print("  temp="); Serial.print(currentTemperature);
+    Serial.print("C target="); Serial.println(TEMPERATURE_TARGET);
+    prevHeat = heatOn;
+  }
 }
 
 // ─── Serial Logging ──────────────────────────────────────────────────────────

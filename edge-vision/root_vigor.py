@@ -16,21 +16,23 @@ Why OpenCV and not a neural network?
 Dependencies: see requirements.txt
 """
 
+import os
+import sys
 import cv2
 import numpy as np
-from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
+# Import thresholds from config.py instead of hardcoding them here.
+# classify_vigor() and the simulation use identical cutoff values.
+# both the simulation AND the camera classification update automatically.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "simulation"))
+from config import HIGH_VIGOR_CM, GROWING_CM
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
 # Calibration: measure a known object in frame to get this value
 PIXELS_PER_CM: float = 37.8  # adjust per your camera/mount height
-
-# Vigor thresholds (cm of root development)
-THRESHOLD_HIGH_VIGOR_CM = 3.0
-THRESHOLD_GROWING_CM    = 0.5
 
 # HSV color range for root detection (off-white / cream colored ube roots)
 # Tune these in the calibration notebook if your lighting changes
@@ -46,14 +48,13 @@ class VigorClass(Enum):
     DUD        = "DUD"         # root < 0.5cm → flag for review
 
 
-@dataclass
 class VigorResult:
-    vessel_id:     str
-    root_length_cm: float
-    vigor_class:   VigorClass
-    confidence:    float        # 0.0–1.0, based on mask coverage quality
-    debug_frame:   Optional[np.ndarray] = None  # annotated image for dashboard
-
+    def __init__(self, vessel_id, root_length_cm, vigor_class, confidence, debug_frame=None):
+        self.vessel_id      = vessel_id
+        self.root_length_cm = root_length_cm
+        self.vigor_class    = vigor_class
+        self.confidence     = confidence
+        self.debug_frame    = debug_frame
 
 # ─── Core Functions ───────────────────────────────────────────────────────────
 
@@ -107,12 +108,10 @@ def measure_root_length(mask: np.ndarray) -> tuple[float, float]:
 
     return length_cm, confidence
 
-
-def classify_vigor(length_cm: float) -> VigorClass:
-    """Maps root length to a vigor class. Single source of truth for thresholds."""
-    if length_cm >= THRESHOLD_HIGH_VIGOR_CM:
+def classify_vigor(length_cm):
+    if length_cm >= HIGH_VIGOR_CM:
         return VigorClass.HIGH_VIGOR
-    elif length_cm >= THRESHOLD_GROWING_CM:
+    elif length_cm >= GROWING_CM:
         return VigorClass.GROWING
     else:
         return VigorClass.DUD
@@ -188,7 +187,8 @@ def _skeletonize(binary_mask: np.ndarray) -> np.ndarray:
 if __name__ == "__main__":
     # Quick CLI test: python root_vigor.py
     result = analyze_vessel(vessel_id="VESSEL-001", debug=True)
-    print(f"Result: {result.vigor_class.value} | {result.root_length_cm}cm | conf:{result.confidence}")
+print("Result: {} | {}cm | conf:{}".format(
+    result.vigor_class.value, result.root_length_cm, result.confidence))
 
     if result.debug_frame is not None:
         cv2.imshow("Root Vigor Debug", result.debug_frame)

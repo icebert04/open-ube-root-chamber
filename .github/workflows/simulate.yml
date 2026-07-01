@@ -9,7 +9,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.9"
-      - name: Install dependencies
-        run: pip install rich
+      - name: Generate config.h from config.py
+        run: python simulation/generate_config_h.py
       - name: Run simulation in batch mode
         run: python simulation/simulate.py --days 30
