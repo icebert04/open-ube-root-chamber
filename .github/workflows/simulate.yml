@@ -12,4 +12,4 @@ jobs:
       - name: Generate config.h from config.py
         run: python simulation/generate_config_h.py
       - name: Run simulation in batch mode
-        run: python simulation/simulate.py --days 30
+        run: python simulation/simulate.py --days 30 --batch
